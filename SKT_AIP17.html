@@ -3,134 +3,130 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SKT 아이폰17 시세 - ALGO</title>
+    <title>SKT 자동계산 - ALGO</title>
     <style>
-        :root { --main: #e60023; --bg: #f4f4f4; }
+        :root { --main: #e60023; --bg: #f4f4f4; --blue: #0066ff; }
         body { font-family: 'Pretendard', sans-serif; background: var(--bg); margin: 0; padding: 10px; }
         .wrapper { max-width: 500px; margin: 0 auto; background: #fff; border-radius: 15px; overflow: hidden; box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
         .header { background: var(--main); color: #fff; padding: 18px; text-align: center; font-weight: bold; font-size: 19px; }
-        .model-area { background: #333; padding: 12px; display: flex; gap: 8px; justify-content: center; }
-        .m-btn { flex: 1; padding: 12px; border: 1px solid #555; background: #444; color: #bbb; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: bold; }
-        .m-btn.active { background: #fff; color: #000; border-color: #fff; }
+        .model-area { background: #333; padding: 10px; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+        .model-area::-webkit-scrollbar { display: none; }
+        .m-btn { padding: 9px 14px; border: 1px solid #555; background: #444; color: #bbb; border-radius: 8px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+        .m-btn.active { background: #fff; color: #000; font-weight: bold; border-color: #fff; }
         .tab-row { display: flex; border-bottom: 1px solid #eee; }
-        .tab { flex: 1; padding: 15px; border: none; background: #f9f9f9; cursor: pointer; font-weight: bold; color: #777; font-size: 14px; }
+        .tab { flex: 1; padding: 14px; border: none; background: #f9f9f9; cursor: pointer; font-weight: bold; color: #777; font-size: 14px; }
         .tab.active { background: #fff; color: var(--main); border-bottom: 3px solid var(--main); }
-        .info-txt { padding: 20px 15px 5px; font-size: 16px; font-weight: bold; text-align: center; }
+        .tab.sub-tab.active { color: var(--blue); border-bottom: 3px solid var(--blue); }
+        .info-txt { padding: 15px 15px 5px; font-size: 15px; font-weight: bold; }
+        .info-txt small { color: #888; font-weight: normal; font-size: 12px; }
         table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
         th { background: #f8f9fa; border-bottom: 2px solid #ddd; padding: 12px 5px; }
-        td { border-bottom: 1px solid #eee; padding: 16px 5px; text-align: center; }
-        .price-red { color: var(--main); font-weight: 900; font-size: 18px; }
-        .apply-btn { display: block; margin: 20px; background: var(--main); color: #fff; text-align: center; padding: 18px; border-radius: 12px; text-decoration: none; font-weight: 900; font-size: 18px; }
+        td { border-bottom: 1px solid #eee; padding: 15px 5px; text-align: center; line-height: 1.4; }
+        .price-red { color: var(--main); font-weight: 900; font-size: 17px; }
+        .highlight { background: #fffafa; }
+        .apply-btn { display: block; margin: 20px; background: var(--main); color: #fff; text-align: center; padding: 16px; border-radius: 12px; text-decoration: none; font-weight: 900; font-size: 18px; }
     </style>
 </head>
 <body>
-
 <div class="wrapper">
-    <div class="header">SKT 아이폰 17 실시간 시세</div>
+    <div class="header">SKT [ALGO] </div>
     <div class="model-area" id="model-btns"></div>
     <div class="tab-row">
-        <button class="tab active" onclick="updateType('UP', this)">기기변경</button>
-        <button class="tab" onclick="updateType('NP', this)">번호이동</button>
+        <button class="tab active" onclick="setType('UP', this)">기기변경</button>
+        <button class="tab" onclick="setType('NP', this)">번호이동</button>
     </div>
     <div class="tab-row">
-        <button class="tab active" style="width:100%; border-bottom: 3px solid #0066ff; color:#0066ff;">공시지원금 할인 기준</button>
+        <button class="tab sub-tab active" onclick="setMode('gongsi', this)">공시지원금 할인</button>
+        <button class="tab sub-tab" onclick="setMode('sanyak', this)">선택약정 25% 할인</button>
     </div>
-    <div class="info-txt"><span id="m-name">조회 중...</span><br><small id="m-price">-</small></div>
+    <div class="info-txt"><span id="disp-name">데이터 로딩 중...</span><br><small id="disp-price">-</small></div>
     <table>
-        <thead><tr><th>요금제</th><th>지원합계</th><th>할부원금</th><th style="background:#fffafa">월 납부액</th></tr></thead>
-        <tbody id="t-body"></tbody>
+        <thead><tr id="tableHead"></tr></thead>
+        <tbody id="tableBody"></tbody>
     </table>
-    <a href="https://tgateplus.sktelecom.com/main/main.do?p=6371dc04db9e9108349ee5afbcd9035ff0a1d17d57981a8712987187a501a69b" class="apply-btn">📄 아이폰 17 즉시 개통하기</a>
+    <a href="javascript:openForm();" class="apply-btn">📄 공식 신청서 작성하기</a>
 </div>
-
 <script>
-const SHEET_URL = `https://docs.google.com/spreadsheets/d/1BLu38wjfsMwRk9wp5jnlE-3mlqb-_mZzp0i-Z_fdoXw/gviz/tq?tqx=out:csv`;
+const SHEET_URL = `https://docs.google.com/spreadsheets/d/1BLu38wjfsMwRk9wp5jnlE-3mlqb-_mZzp0i-Z_fdoXw/gviz/tq?tqx=out:csv&sheet=autoprice`;
+const PLANS = [ {n:"5GX 프리미엄", p:109000}, {n:"5GX 프라임+", p:99000}, {n:"5GX 프라임", p:89000}, {n:"5GX 레귤러+", p:79000} ];
+let DEVICES = []; 
+let curDev = null; let curType = 'UP'; let curMode = 'gongsi';
 
-const PLANS = [ 
-    {name:"5GX 프리미엄", price:109000}, 
-    {name:"5GX 프라임+", price:99000}, 
-    {name:"5GX 프라임", price:89000}, 
-    {name:"5GX 레귤러+", price:79000} 
-];
-
-let DEVICES = []; let cur = null; let type = 'UP';
-
-async function loadData() {
+async function init() {
     try {
         const res = await fetch(SHEET_URL);
         const text = await res.text();
-        // 쉼표로 분리하되, 따옴표 안의 쉼표는 무시하도록 처리
-        const rows = text.split('\n').map(row => row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || []);
+        const rows = text.split('\n').map(row => row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(cell => cell.replace(/"/g, '').trim()));
         
-        DEVICES = rows.filter(cols => {
-            const name = (cols[0] || "").replace(/"/g, "");
-            return name.includes("17") && (name.includes("256") || name.includes("512"));
-        }).map(cols => {
-            // 숫자가 아닌 문자 제거 후 정수 변환
-            const clean = (val) => parseInt((val || "0").replace(/[^0-9]/g, "")) || 0;
+        // 시트 데이터 파싱 (헤더 제외)
+        DEVICES = rows.filter(cols => cols[0] && cols[0] !== "기종명").map(cols => {
+            const n = (val) => parseInt(String(val || "0").replace(/[^0-9]/g, "")) || 0;
             return {
-                name: cols[0].replace(/"/g, ""),
-                price: clean(cols[7]),   // H열 출고가
-                gongsi: clean(cols[9]),  // J열 공시지원금
-                NP: clean(cols[1]),      // B열 번이 지원금
-                UP: clean(cols[2])       // C열 기변 지원금
+                name: cols[0],
+                price: n(cols[1]),     // 출고가 (B열)
+                support: n(cols[2]),   // 공시지원금 (C열)
+                UP: (cols[3] || "0,0,0,0").split(',').map(v => n(v) * 10000), // D열 (기변지원금 만원단위)
+                NP: (cols[4] || "0,0,0,0").split(',').map(v => n(v) * 10000), // E열 (번이지원금 만원단위)
+                url: cols[11]          // L열 신청서URL
             };
         });
 
+        const area = document.getElementById('model-btns');
+        area.innerHTML = "";
+        DEVICES.forEach((d, i) => {
+            const btn = document.createElement('button');
+            btn.className = `m-btn ${i===0?'active':''}`; btn.innerText = d.name;
+            btn.onclick = function() { 
+                document.querySelectorAll('.m-btn').forEach(x=>x.classList.remove('active')); 
+                this.classList.add('active'); curDev = d; render(); 
+            };
+            area.appendChild(btn);
+        });
+
         if(DEVICES.length > 0) {
-            cur = DEVICES[0];
-            renderButtons();
+            curDev = DEVICES[0];
             render();
         }
-    } catch (e) { console.error(e); }
+    } catch (e) {
+        document.getElementById('disp-name').innerText = "시트 연결 오류";
+        console.error(e);
+    }
 }
 
-function renderButtons() {
-    const area = document.getElementById('model-btns');
-    area.innerHTML = "";
-    DEVICES.forEach(d => {
-        const btn = document.createElement('button');
-        btn.className = `m-btn ${d === cur ? 'active' : ''}`;
-        btn.innerText = d.name.includes("256") ? "256G" : "512G";
-        btn.onclick = () => { cur = d; renderButtons(); render(); };
-        area.appendChild(btn);
-    });
-}
-
-function updateType(t, b) { 
-    type = t; 
-    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); 
-    b.classList.add('active'); 
-    render(); 
-}
+function setType(t, b) { curType = t; b.parentNode.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); render(); }
+function setMode(m, b) { curMode = m; b.parentNode.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); render(); }
 
 function render() {
-    if(!cur) return;
-    document.getElementById('m-name').innerText = cur.name;
-    document.getElementById('m-price').innerText = `출고가: ${cur.price.toLocaleString()}원`;
+    if(!curDev) return;
+    document.getElementById('disp-name').innerText = curDev.name;
+    document.getElementById('disp-price').innerText = `출고가: ${curDev.price.toLocaleString()}원 (${curType==='UP'?'기변':'번이'})`;
+    const head = document.getElementById('tableHead'); const body = document.getElementById('tableBody'); body.innerHTML = "";
     
-    const body = document.getElementById('t-body');
-    body.innerHTML = "";
-
-    const algoSupport = cur[type] * 10000; // 사장님 지원금 (단위: 만원)
-    const totalSupp = cur.gongsi + algoSupport; // 공시 + 사장님 지원금
-
-    PLANS.forEach(p => {
-        const principal = Math.max(0, cur.price - totalSupp); // 할부원금 = 출고가 - 지원합계
-        const monthlyInstallment = Math.floor((principal * 1.059) / 24 / 10) * 10; // 24개월 할부 (이자 5.9%)
-        const totalMonthly = monthlyInstallment + p.price; // 월 납부액 = 할부금 + 요금제
-
-        body.innerHTML += `
-            <tr>
-                <td><b>${p.name}</b></td>
-                <td>${totalSupp.toLocaleString()}</td>
-                <td>${principal.toLocaleString()}</td>
-                <td class="price-red">${totalMonthly.toLocaleString()}원</td>
-            </tr>`;
-    });
+    if (curMode === 'gongsi') {
+        head.innerHTML = `<th>요금제</th><th>지원합계</th><th>할부원금</th><th class="highlight">월 납부액</th>`;
+        PLANS.forEach((p, i) => {
+            const totalSupp = (curDev[curType][i] || 0) + curDev.support;
+            const principal = Math.max(0, curDev.price - totalSupp);
+            const monPay = Math.floor((principal * 1.059) / 24 / 10) * 10 + p.p;
+            body.innerHTML += `<tr><td><b>${p.n}</b><br><small>${p.p.toLocaleString()}원</small></td><td>${totalSupp.toLocaleString()}</td><td>${principal.toLocaleString()}</td><td class="price-red highlight">${monPay.toLocaleString()}원</td></tr>`;
+        });
+    } else {
+        head.innerHTML = `<th>요금제</th><th>25% 할인</th><th>할부원금</th><th class="highlight">월 납부액</th>`;
+        PLANS.forEach((p, i) => {
+            // 선택약정 시에는 '추가 지원금'만 제외 (공시는 제외 안함)
+            const algoSupp = (curDev[curType][i] || 0);
+            const principal = Math.max(0, curDev.price - algoSupp);
+            const monPay = Math.floor((principal * 1.059) / 24 / 10) * 10 + (p.p * 0.75);
+            body.innerHTML += `<tr><td><b>${p.n}</b><br><small>${p.p.toLocaleString()}원</small></td><td style="color:green">-${(p.p*0.25).toLocaleString()}</td><td>${principal.toLocaleString()}</td><td class="price-red highlight">${monPay.toLocaleString()}원</td></tr>`;
+        });
+    }
 }
 
-loadData();
+function openForm() { 
+    const targetUrl = curDev && curDev.url ? curDev.url : "https://tgateplus.sktelecom.com/main/main.do?p=6371dc04db9e9108349ee5afbcd9035ff0a1d17d57981a8712987187a501a69b";
+    if(confirm("주문 및 공식 신청서로 연결됩니다")) window.location.href = targetUrl; 
+}
+init();
 </script>
 </body>
 </html>
