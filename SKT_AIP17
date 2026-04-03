@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SKT 자동계산 - ALGO</title>
+    <style>
+        :root { --main: #e60023; --bg: #f4f4f4; --blue: #0066ff; }
+        body { font-family: 'Pretendard', sans-serif; background: var(--bg); margin: 0; padding: 10px; }
+        .wrapper { max-width: 500px; margin: 0 auto; background: #fff; border-radius: 15px; overflow: hidden; box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+        .header { background: var(--main); color: #fff; padding: 18px; text-align: center; font-weight: bold; font-size: 19px; }
+        
+        /* 모델 선택 가로 스크롤바 */
+        .model-area { background: #333; padding: 12px; display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+        .model-area::-webkit-scrollbar { display: none; }
+        .m-btn { padding: 10px 16px; border: 1px solid #555; background: #444; color: #bbb; border-radius: 8px; font-size: 13px; cursor: pointer; white-space: nowrap; transition: 0.2s; }
+        .m-btn.active { background: #fff; color: #000; font-weight: bold; border-color: #fff; }
+        
+        /* 탭 스타일 */
+        .tab-row { display: flex; border-bottom: 1px solid #eee; }
+        .tab { flex: 1; padding: 15px; border: none; background: #f9f9f9; cursor: pointer; font-weight: bold; color: #777; font-size: 14px; transition: 0.2s; }
+        .tab.active { background: #fff; color: var(--main); border-bottom: 3px solid var(--main); }
+        .tab.sub-tab.active { color: var(--blue); border-bottom: 3px solid var(--blue); }
+        
+        /* 정보 표시 */
+        .info-txt { padding: 20px 15px 5px; font-size: 16px; font-weight: bold; line-height: 1.5; }
+        .info-txt small { color: #888; font-weight: normal; font-size: 13px; display: block; margin-top: 4px; }
+        
+        /* 테이블 */
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; border-top: 1px solid #eee; }
+        th { background: #f8f9fa; border-bottom: 2px solid #ddd; padding: 12px 5px; color: #666; }
+        td { border-bottom: 1px solid #eee; padding: 16px 5px; text-align: center; line-height: 1.4; }
+        .price-red { color: var(--main); font-weight: 900; font-size: 18px; }
+        .highlight { background: #fffafa; }
+        
+        /* 로딩 애니메이션 */
+        .loading { text-align: center; padding: 40px; font-weight: bold; color: #999; }
+        
+        /* 신청 버튼 */
+        .apply-btn { display: block; margin: 20px; background: var(--main); color: #fff; text-align: center; padding: 18px; border-radius: 12px; text-decoration: none; font-weight: 900; font-size: 18px; box-shadow: 0 4px 10px rgba(230,0,35,0.3); }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    <div class="header">SKT 실시간 요금계산기 [ALGO]</div>
+    
+    <div id="loading" class="loading">최신 시세 데이터 로드 중...</div>
+
+    <!-- 모델 버튼 영역 -->
+    <div class="model-area" id="model-btns" style="display:none;"></div>
+
+    <div id="main-content" style="display:none;">
+        <!-- 기변/번이 탭 -->
+        <div class="tab-row">
+            <button class="tab active" onclick="setType('UP', this)">기기변경</button>
+            <button class="tab" onclick="setType('NP', this)">번호이동</button>
+        </div>
+        
+        <!-- 할인방식 탭 -->
+        <div class="tab-row">
+            <button class="tab sub-tab active" onclick="setMode('gongsi', this)">공시지원금 할인</button>
+            <button class="tab sub-tab" onclick="setMode('sanyak', this)">선택약정 25% 할인</button>
+        </div>
+
+        <!-- 모델명 및 출고가 -->
+        <div class="info-txt">
+            <span id="disp-name">-</span>
+            <small id="disp-price">-</small>
+        </div>
+
+        <!-- 요금제 상세 테이블 -->
+        <table>
+            <thead>
+                <tr id="tableHead"></tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+
+        <a href="javascript:openForm();" class="apply-btn">📄 공식 신청서 작성하기</a>
+    </div>
+</div>
+
+<script>
+// 요금제 설정
+const PLANS = [
+    {n:"5GX 프리미엄", p:109000},
+    {n:"5GX 프라임+", p:99000},
+    {n:"5GX 프라임", p:89000},
+    {n:"5GX 레귤러+", p:79000}
+];
+
+// 사장님 구글 시트 연동
+const spreadsheetId = '1BLu38wjfsMwRk9wp5jnlE-3mlqb-_mZzp0i-Z_fdoXw';
+const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=Sheet1`;
+
+let DEVICES = [];
+let curDev = null;
+let curType = 'UP'; // 기본 기기변경
+let curMode = 'gongsi'; // 기본 공시지원금
+
+async function init() {
+    try {
+        const response = await fetch(url);
+        const csvData = await response.text();
+        const rows = csvData.split('\n').map(row => row.replace(/"/g, '').split(','));
+        
+        // 1. 구글 시트 데이터 매핑 (A열:이름, B:SK번이지원금, C:SK기변지원금)
+        // ※ 출고가랑 공시지원금은 일단 기본값으로 넣고, 시트에 데이터 추가 시 수정 가능하게 함
+        DEVICES = rows.filter(cols => cols[0] && cols[0].trim() !== "" && cols[0] !== "모델명")
+                      .map(cols => ({
+            name: cols[0],
+            price: 1550000, // 임시 출고가 (시트 H열 등으로 확장 가능)
+            gongsi: 500000, // 임시 통신사 공시지원금 (시트 J열 등으로 확장 가능)
+            UP: parseInt(cols[2]) || 0, // SK기변 알고지원금 (C열)
+            NP: parseInt(cols[1]) || 0  // SK번이 알고지원금 (B열)
+        }));
+
+        if (DEVICES.length > 0) {
+            curDev = DEVICES[0];
+            renderButtons();
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('model-btns').style.display = 'flex';
+            document.getElementById('main-content').style.display = 'block';
+            render();
+        }
+    } catch (e) {
+        document.getElementById('loading').innerText = "데이터 로딩 실패";
+    }
+}
+
+// 모델 버튼 생성
+function renderButtons() {
+    const area = document.getElementById('model-btns');
+    DEVICES.forEach((d, i) => {
+        const btn = document.createElement('button');
+        btn.className = `m-btn ${i === 0 ? 'active' : ''}`;
+        btn.innerText = d.name;
+        btn.onclick = function() {
+            document.querySelectorAll('.m-btn').forEach(x => x.classList.remove('active'));
+            this.classList.add('active');
+            curDev = d;
+            render();
+        };
+        area.appendChild(btn);
+    });
+}
+
+function setType(t, b) {
+    curType = t;
+    b.parentNode.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    render();
+}
+
+function setMode(m, b) {
+    curMode = m;
+    b.parentNode.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    render();
+}
+
+function render() {
+    document.getElementById('disp-name').innerText = curDev.name;
+    document.getElementById('disp-price').innerText = `출고가: ${curDev.price.toLocaleString()}원 (${curType === 'UP' ? '기기변경' : '번호이동'})`;
+    
+    const head = document.getElementById('tableHead');
+    const body = document.getElementById('tableBody');
+    body.innerHTML = "";
+
+    // 매장 지원금 (시트에서 가져온 값은 '만원' 단위라고 가정하여 *10000)
+    const algoSupport = curDev[curType] * 10000;
+
+    if (curMode === 'gongsi') {
+        head.innerHTML = `<th>요금제</th><th>지원합계</th><th>할부원금</th><th class="highlight">월 납부액</th>`;
+        PLANS.forEach(p => {
+            const totalSupp = curDev.gongsi + algoSupport;
+            const principal = Math.max(0, curDev.price - totalSupp);
+            // 월 할부금(이자 5.9% 포함) + 요금제
+            const monPay = Math.floor((principal * 1.059) / 24 / 10) * 10 + p.p;
+            
+            body.innerHTML += `
+                <tr>
+                    <td><b>${p.n}</b><br><small>${p.p.toLocaleString()}원</small></td>
+                    <td>${totalSupp.toLocaleString()}</td>
+                    <td>${principal.toLocaleString()}</td>
+                    <td class="price-red highlight">${monPay.toLocaleString()}원</td>
+                </tr>`;
+        });
+    } else {
+        head.innerHTML = `<th>요금제</th><th>25% 할인</th><th>할부원금</th><th class="highlight">월 납부액</th>`;
+        PLANS.forEach(p => {
+            const principal = Math.max(0, curDev.price - algoSupport);
+            const monPay = Math.floor((principal * 1.059) / 24 / 10) * 10 + (p.p * 0.75);
+            
+            body.innerHTML += `
+                <tr>
+                    <td><b>${p.n}</b><br><small>${p.p.toLocaleString()}원</small></td>
+                    <td style="color:green">-${(p.p * 0.25).toLocaleString()}</td>
+                    <td>${principal.toLocaleString()}</td>
+                    <td class="price-red highlight">${monPay.toLocaleString()}원</td>
+                </tr>`;
+        });
+    }
+}
+
+function openForm() {
+    if(confirm("주문 및 공식 신청서로 연결됩니다.")) {
+        window.location.href = "https://tgateplus.sktelecom.com/main/main.do?p=6371dc04db9e9108349ee5afbcd9035ff0a1d17d57981a8712987187a501a69b";
+    }
+}
+
+init();
+</script>
+</body>
+</html>
