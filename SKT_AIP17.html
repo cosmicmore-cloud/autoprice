@@ -29,7 +29,7 @@
 </head>
 <body>
 <div class="wrapper">
-    <div class="header">SKT [ALGO] </div>
+    <div class="header">SKT [ALGO]</div>
     <div class="model-area" id="model-btns"></div>
     <div class="tab-row">
         <button class="tab active" onclick="setType('UP', this)">기기변경</button>
@@ -47,8 +47,10 @@
     <a href="javascript:openForm();" class="apply-btn">📄 공식 신청서 작성하기</a>
 </div>
 <script>
+// 구글 시트 주소 (autoprice 탭)
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/1BLu38wjfsMwRk9wp5jnlE-3mlqb-_mZzp0i-Z_fdoXw/gviz/tq?tqx=out:csv&sheet=autoprice`;
 const PLANS = [ {n:"5GX 프리미엄", p:109000}, {n:"5GX 프라임+", p:99000}, {n:"5GX 프라임", p:89000}, {n:"5GX 레귤러+", p:79000} ];
+
 let DEVICES = []; 
 let curDev = null; let curType = 'UP'; let curMode = 'gongsi';
 
@@ -56,18 +58,28 @@ async function init() {
     try {
         const res = await fetch(SHEET_URL);
         const text = await res.text();
-        const rows = text.split('\n').map(row => row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(cell => cell.replace(/"/g, '').trim()));
         
-        // 시트 데이터 파싱 (헤더 제외)
+        // 쉼표가 들어간 지원금 데이터를 보호하면서 파싱 (정교한 정규식 적용)
+        const rows = text.split('\n').map(row => {
+            const matches = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+            return matches ? matches.map(cell => cell.replace(/"/g, '').trim()) : [];
+        });
+        
         DEVICES = rows.filter(cols => cols[0] && cols[0] !== "기종명").map(cols => {
             const n = (val) => parseInt(String(val || "0").replace(/[^0-9]/g, "")) || 0;
+            // 콤마로 구분된 지원금을 배열로 변환 (예: "50,48,45,40")
+            const splitSupport = (str) => {
+                if(!str) return [0,0,0,0];
+                return str.split(',').map(v => n(v) * 10000); // 만원 단위 계산
+            };
+
             return {
-                name: cols[0],
-                price: n(cols[1]),     // 출고가 (B열)
-                support: n(cols[2]),   // 공시지원금 (C열)
-                UP: (cols[3] || "0,0,0,0").split(',').map(v => n(v) * 10000), // D열 (기변지원금 만원단위)
-                NP: (cols[4] || "0,0,0,0").split(',').map(v => n(v) * 10000), // E열 (번이지원금 만원단위)
-                url: cols[11]          // L열 신청서URL
+                name: cols[0],       // A: 기종명
+                price: n(cols[1]),   // B: 출고가
+                support: n(cols[2]), // C: 공시지원금
+                UP: splitSupport(cols[3]), // D: SK기변 전용
+                NP: splitSupport(cols[4]), // E: SK번이 전용
+                url: cols[11] || cols[12]  // 신청서 링크
             };
         });
 
@@ -88,7 +100,7 @@ async function init() {
             render();
         }
     } catch (e) {
-        document.getElementById('disp-name').innerText = "시트 연결 오류";
+        document.getElementById('disp-name').innerText = "데이터 로딩 오류";
         console.error(e);
     }
 }
@@ -99,33 +111,49 @@ function setMode(m, b) { curMode = m; b.parentNode.querySelectorAll('.tab').forE
 function render() {
     if(!curDev) return;
     document.getElementById('disp-name').innerText = curDev.name;
-    document.getElementById('disp-price').innerText = `출고가: ${curDev.price.toLocaleString()}원 (${curType==='UP'?'기변':'번이'})`;
-    const head = document.getElementById('tableHead'); const body = document.getElementById('tableBody'); body.innerHTML = "";
+    document.getElementById('disp-price').innerText = `출고가: ${curDev.price.toLocaleString()}원 (${curType==='UP'?'SK기변':'SK번이'})`;
+    
+    const head = document.getElementById('tableHead'); 
+    const body = document.getElementById('tableBody'); 
+    body.innerHTML = "";
     
     if (curMode === 'gongsi') {
         head.innerHTML = `<th>요금제</th><th>지원합계</th><th>할부원금</th><th class="highlight">월 납부액</th>`;
         PLANS.forEach((p, i) => {
-            const totalSupp = (curDev[curType][i] || 0) + curDev.support;
+            const algoSupp = (curDev[curType] && curDev[curType][i]) ? curDev[curType][i] : 0;
+            const totalSupp = algoSupp + curDev.support;
             const principal = Math.max(0, curDev.price - totalSupp);
             const monPay = Math.floor((principal * 1.059) / 24 / 10) * 10 + p.p;
-            body.innerHTML += `<tr><td><b>${p.n}</b><br><small>${p.p.toLocaleString()}원</small></td><td>${totalSupp.toLocaleString()}</td><td>${principal.toLocaleString()}</td><td class="price-red highlight">${monPay.toLocaleString()}원</td></tr>`;
+            
+            body.innerHTML += `<tr>
+                <td><b>${p.n}</b><br><small>${p.p.toLocaleString()}원</small></td>
+                <td>${totalSupp.toLocaleString()}</td>
+                <td>${principal.toLocaleString()}</td>
+                <td class="price-red highlight">${monPay.toLocaleString()}원</td>
+            </tr>`;
         });
     } else {
         head.innerHTML = `<th>요금제</th><th>25% 할인</th><th>할부원금</th><th class="highlight">월 납부액</th>`;
         PLANS.forEach((p, i) => {
-            // 선택약정 시에는 '추가 지원금'만 제외 (공시는 제외 안함)
-            const algoSupp = (curDev[curType][i] || 0);
+            const algoSupp = (curDev[curType] && curDev[curType][i]) ? curDev[curType][i] : 0;
             const principal = Math.max(0, curDev.price - algoSupp);
             const monPay = Math.floor((principal * 1.059) / 24 / 10) * 10 + (p.p * 0.75);
-            body.innerHTML += `<tr><td><b>${p.n}</b><br><small>${p.p.toLocaleString()}원</small></td><td style="color:green">-${(p.p*0.25).toLocaleString()}</td><td>${principal.toLocaleString()}</td><td class="price-red highlight">${monPay.toLocaleString()}원</td></tr>`;
+            
+            body.innerHTML += `<tr>
+                <td><b>${p.n}</b><br><small>${p.p.toLocaleString()}원</small></td>
+                <td style="color:green">-${(p.p*0.25).toLocaleString()}</td>
+                <td>${principal.toLocaleString()}</td>
+                <td class="price-red highlight">${monPay.toLocaleString()}원</td>
+            </tr>`;
         });
     }
 }
 
 function openForm() { 
-    const targetUrl = curDev && curDev.url ? curDev.url : "https://tgateplus.sktelecom.com/main/main.do?p=6371dc04db9e9108349ee5afbcd9035ff0a1d17d57981a8712987187a501a69b";
+    const targetUrl = (curDev && curDev.url) ? curDev.url : "https://tgateplus.sktelecom.com/...";
     if(confirm("주문 및 공식 신청서로 연결됩니다")) window.location.href = targetUrl; 
 }
+
 init();
 </script>
 </body>
