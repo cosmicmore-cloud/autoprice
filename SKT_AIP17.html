@@ -24,7 +24,7 @@
         td { border-bottom: 1px solid #eee; padding: 15px 5px; text-align: center; line-height: 1.4; }
         .price-red { color: var(--main); font-weight: 900; font-size: 17px; }
         .highlight { background: #fffafa; }
-        .apply-btn { display: block; margin: 20px; background: var(--main); color: #fff; text-align: center; padding: 16px; border-radius: 12px; text-decoration: none; font-weight: 900; font-size: 18px; }
+        .apply-btn { display: block; margin: 20px; background: var(--main); color: #fff; text-align: center; padding: 16px; border-radius: 12px; text-decoration: none; font-weight: 900; font-size: 18px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -44,11 +44,11 @@
         <thead><tr id="tableHead"></tr></thead>
         <tbody id="tableBody"></tbody>
     </table>
-    <a href="javascript:openForm();" class="apply-btn">📄 공식 신청서 작성하기</a>
+    <div id="apply-btn-area"></div>
 </div>
 
 <script>
-// 사장님 시트 주소 (탭: skt_price)
+// 시트 주소 (skt_price 탭 전용)
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/1BLu38wjfsMwRk9wp5jnlE-3mlqb-_mZzp0i-Z_fdoXw/gviz/tq?tqx=out:csv&sheet=skt_price`;
 const PLANS = [ {n:"5GX 프리미엄", p:109000}, {n:"5GX 프라임+", p:99000}, {n:"5GX 프라임", p:89000}, {n:"5GX 레귤러+", p:79000} ];
 
@@ -59,26 +59,34 @@ async function init() {
     try {
         const res = await fetch(SHEET_URL);
         const text = await res.text();
+        
+        // 쉼표 데이터 정밀 파싱
         const rows = text.split('\n').map(row => {
             const matches = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
             return matches ? matches.map(cell => cell.replace(/"/g, '').trim()) : [];
         });
-        
-        DEVICES = rows.filter(cols => cols[0] && cols[0] !== "기종명").map(cols => {
-            const n = (val) => parseInt(String(val || "0").replace(/[^0-9]/g, "")) || 0;
-            const splitSupport = (str) => {
+
+        // 데이터 파싱 (제목줄 제외)
+        DEVICES = rows.slice(1).map(cols => {
+            const cleanNum = (val) => {
+                if(!val) return 0;
+                let num = parseInt(val.replace(/[^0-9]/g, ""));
+                return isNaN(num) ? 0 : num;
+            };
+            const splitSupp = (str) => {
                 if(!str) return [0,0,0,0];
-                return str.split(',').map(v => n(v) * 10000); 
+                return str.split(',').map(v => cleanNum(v) * 10000); 
             };
+
             return {
-                name: cols[0],       // A열: 기종명
-                price: n(cols[1]),   // B열: 출고가
-                support: n(cols[2]), // C열: 추가지원금
-                UP: splitSupport(cols[3]), // D열: SKT기변
-                NP: splitSupport(cols[4]), // E열: SKT번이
-                url: cols[9]         // J열: 신청서URL (0부터 시작하므로 9번이 J열입니다)
+                name: cols[0] || "기종명 없음", 
+                price: cleanNum(cols[1]),       // B열: 출고가
+                support: cleanNum(cols[2]),     // C열: 추가지원금
+                UP: splitSupp(cols[3]),         // D열: SK기변
+                NP: splitSupp(cols[4]),         // E열: SK번이
+                url: cols[9] || ""              // J열: 신청서 URL
             };
-        });
+        }).filter(d => d.price > 0); // 출고가 있는 데이터만 사용
 
         const area = document.getElementById('model-btns');
         area.innerHTML = "";
@@ -93,7 +101,9 @@ async function init() {
         });
 
         if(DEVICES.length > 0) { curDev = DEVICES[0]; render(); }
-    } catch (e) { document.getElementById('disp-name').innerText = "데이터 연결 실패"; }
+    } catch (e) {
+        document.getElementById('disp-name').innerText = "데이터 로딩 오류 (공유 설정을 확인하세요)";
+    }
 }
 
 function setType(t, b) { curType = t; b.parentNode.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); render(); }
@@ -101,9 +111,14 @@ function setMode(m, b) { curMode = m; b.parentNode.querySelectorAll('.tab').forE
 
 function render() {
     if(!curDev) return;
+    
+    // 상단 기종명 및 출고가 업데이트
     document.getElementById('disp-name').innerText = curDev.name;
-    document.getElementById('disp-price').innerText = `출고가: ${curDev.price.toLocaleString()}원 (${curType==='UP'?'기변':'번이'})`;
-    const head = document.getElementById('tableHead'); const body = document.getElementById('tableBody'); body.innerHTML = "";
+    document.getElementById('disp-price').innerText = `정상출고가: ${curDev.price.toLocaleString()}원 (${curType==='UP'?'기변':'번이'})`;
+    
+    const head = document.getElementById('tableHead'); 
+    const body = document.getElementById('tableBody'); 
+    body.innerHTML = "";
     
     if (curMode === 'gongsi') {
         head.innerHTML = `<th>요금제</th><th>지원합계</th><th>할부원금</th><th class="highlight">월 납부액</th>`;
@@ -111,29 +126,46 @@ function render() {
             const algoSupp = curDev[curType][i] || 0;
             const totalSupp = algoSupp + curDev.support;
             const principal = Math.max(0, curDev.price - totalSupp);
-            const monPay = Math.floor((principal * 1.059) / 24 / 10) * 10 + p.p;
-            body.innerHTML += `<tr><td><b>${p.n}</b><br><small>${p.p.toLocaleString()}원</small></td><td>${totalSupp.toLocaleString()}</td><td>${principal.toLocaleString()}</td><td class="price-red highlight">${monPay.toLocaleString()}원</td></tr>`;
+            const installMonthly = Math.floor((principal * 1.059) / 24 / 10) * 10;
+            const totalMonthly = installMonthly + p.p;
+            
+            body.innerHTML += `<tr>
+                <td><b>${p.n}</b><br><small>${p.p.toLocaleString()}원</small></td>
+                <td>${totalSupp.toLocaleString()}</td>
+                <td>${principal.toLocaleString()}</td>
+                <td class="price-red highlight">${totalMonthly.toLocaleString()}원</td>
+            </tr>`;
         });
     } else {
         head.innerHTML = `<th>요금제</th><th>25% 할인</th><th>할부원금</th><th class="highlight">월 납부액</th>`;
         PLANS.forEach((p, i) => {
             const algoSupp = curDev[curType][i] || 0;
             const principal = Math.max(0, curDev.price - algoSupp);
-            const monPay = Math.floor((principal * 1.059) / 24 / 10) * 10 + (p.p * 0.75);
-            body.innerHTML += `<tr><td><b>${p.n}</b><br><small>${p.p.toLocaleString()}원</small></td><td style="color:green">-${(p.p*0.25).toLocaleString()}</td><td>${principal.toLocaleString()}</td><td class="price-red highlight">${monPay.toLocaleString()}원</td></tr>`;
+            const installMonthly = Math.floor((principal * 1.059) / 24 / 10) * 10;
+            const totalMonthly = installMonthly + (p.p * 0.75); // 25% 할인 적용
+            
+            body.innerHTML += `<tr>
+                <td><b>${p.n}</b><br><small>${p.p.toLocaleString()}원</small></td>
+                <td style="color:green">-${(p.p*0.25).toLocaleString()}</td>
+                <td>${principal.toLocaleString()}</td>
+                <td class="price-red highlight">${totalMonthly.toLocaleString()}원</td>
+            </tr>`;
         });
     }
+
+    // 신청서 버튼 업데이트
+    const btnArea = document.getElementById('apply-btn-area');
+    btnArea.innerHTML = `<a href="javascript:openForm('${curDev.url}');" class="apply-btn">📄 ${curDev.name} 공식 신청서 작성</a>`;
 }
 
-function openForm() { 
-    if(!curDev || !curDev.url || curDev.url === "") {
-        alert("신청서 링크가 등록되지 않았습니다.");
+function openForm(url) { 
+    if(!url || url === "" || url.indexOf('http') === -1) {
+        alert("이 기종은 신청서 링크가 준비 중입니다.");
         return;
     }
-    if(confirm("주문 및 공식 신청서로 연결됩니다")) {
-        window.open(curDev.url, '_blank');
-    }
+    if(confirm("주문 및 공식 신청서로 연결됩니다")) window.open(url, '_blank');
 }
+
 init();
 </script>
 </body>
