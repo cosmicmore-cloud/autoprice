@@ -29,7 +29,7 @@
 </head>
 <body>
 <div class="wrapper">
-    <div class="header">SKT [ALGO] </div>
+    <div class="header">SKT [ALGO]</div>
     <div class="model-area" id="model-btns"></div>
     <div class="tab-row">
         <button class="tab active" onclick="setType('UP', this)">기기변경</button>
@@ -39,7 +39,7 @@
         <button class="tab sub-tab active" onclick="setMode('gongsi', this)">공시지원금 할인</button>
         <button class="tab sub-tab" onclick="setMode('sanyak', this)">선택약정 25% 할인</button>
     </div>
-    <div class="info-txt"><span id="disp-name">로딩 중...</span><br><small id="disp-price">-</small></div>
+    <div class="info-txt"><span id="disp-name">데이터 로딩 중...</span><br><small id="disp-price">-</small></div>
     <table>
         <thead><tr id="tableHead"></tr></thead>
         <tbody id="tableBody"></tbody>
@@ -48,8 +48,8 @@
 </div>
 
 <script>
-// 사장님 시트 주소
-const SHEET_URL = `https://docs.google.com/spreadsheets/d/1BLu38wjfsMwRk9wp5jnlE-3mlqb-_mZzp0i-Z_fdoXw/gviz/tq?tqx=out:csv&sheet=autoprice`;
+// 사장님 시트 주소 (탭: skt_price)
+const SHEET_URL = `https://docs.google.com/spreadsheets/d/1BLu38wjfsMwRk9wp5jnlE-3mlqb-_mZzp0i-Z_fdoXw/gviz/tq?tqx=out:csv&sheet=skt_price`;
 const PLANS = [ {n:"5GX 프리미엄", p:109000}, {n:"5GX 프라임+", p:99000}, {n:"5GX 프라임", p:89000}, {n:"5GX 레귤러+", p:79000} ];
 
 let DEVICES = []; 
@@ -59,8 +59,6 @@ async function init() {
     try {
         const res = await fetch(SHEET_URL);
         const text = await res.text();
-        
-        // 쉼표 데이터 정밀 분리
         const rows = text.split('\n').map(row => {
             const matches = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
             return matches ? matches.map(cell => cell.replace(/"/g, '').trim()) : [];
@@ -72,14 +70,13 @@ async function init() {
                 if(!str) return [0,0,0,0];
                 return str.split(',').map(v => n(v) * 10000); 
             };
-
             return {
-                name: cols[0],       // A: 기종명
-                price: n(cols[1]),   // B: 출고가
-                support: n(cols[2]), // C: 공시지원금
-                UP: splitSupport(cols[3]), // D: SK기변
-                NP: splitSupport(cols[4]), // E: SK번이
-                url: cols[11] || cols[12]  // M: 신청서 URL
+                name: cols[0],       // A열: 기종명
+                price: n(cols[1]),   // B열: 출고가
+                support: n(cols[2]), // C열: 추가지원금
+                UP: splitSupport(cols[3]), // D열: SKT기변
+                NP: splitSupport(cols[4]), // E열: SKT번이
+                url: cols[9]         // J열: 신청서URL (0부터 시작하므로 9번이 J열입니다)
             };
         });
 
@@ -95,13 +92,8 @@ async function init() {
             area.appendChild(btn);
         });
 
-        if(DEVICES.length > 0) {
-            curDev = DEVICES[0];
-            render();
-        }
-    } catch (e) {
-        document.getElementById('disp-name').innerText = "시트 연결 오류";
-    }
+        if(DEVICES.length > 0) { curDev = DEVICES[0]; render(); }
+    } catch (e) { document.getElementById('disp-name').innerText = "데이터 연결 실패"; }
 }
 
 function setType(t, b) { curType = t; b.parentNode.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); render(); }
@@ -134,8 +126,13 @@ function render() {
 }
 
 function openForm() { 
-    const targetUrl = (curDev && curDev.url) ? curDev.url : "https://tgateplus.sktelecom.com/main/main.do?p=6371dc04db9e9108349ee5afbcd9035ff0a1d17d57981a8712987187a501a69b";
-    if(confirm("주문 및 공식 신청서로 연결됩니다")) window.location.href = targetUrl; 
+    if(!curDev || !curDev.url || curDev.url === "") {
+        alert("신청서 링크가 등록되지 않았습니다.");
+        return;
+    }
+    if(confirm("주문 및 공식 신청서로 연결됩니다")) {
+        window.open(curDev.url, '_blank');
+    }
 }
 init();
 </script>
