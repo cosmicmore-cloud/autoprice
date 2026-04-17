@@ -3,230 +3,369 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>알고 모바일 실시간 요금표</title>
-    <style>
-        :root { 
-            --toss-blue: #3182f6; 
-            --toss-grey: #f2f4f6; 
-            --toss-text: #191f28; 
-            --toss-subtext: #8b95a1;
-            --sk-red: #f04452;
-            --kt-blue: #3182f6;
-            --lg-purple: #9647ff;
-        }
+    <title>알고모바일 요금제 생성기</title>
+<style>
+    :root {
+        --sk-red: #e60023;
+        --kt-blue: #007aff;
+        --lg-purple: #8e44ad;
+        --t-black: #111111;
+        --t-grey-1: #f6f6f6;
+        --t-grey-2: #eeeeee;
+        --main-color: #e60023; 
+    }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Pretendard', -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
-        body { background-color: #f2f4f6; padding: 15px; color: var(--toss-text); line-height: 1.5; }
-        
-        .calc-wrapper { max-width: 480px; margin: 0 auto; background: #fff; border-radius: 28px; overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,0.04); }
-        
-        /* 통신사 선택 탭 */
-        .agency-nav { display: flex; padding: 20px 20px 10px; gap: 8px; }
-        .agency-tab { flex: 1; padding: 12px; border: none; background: var(--toss-grey); color: var(--toss-subtext); cursor: pointer; font-weight: 700; font-size: 0.95rem; border-radius: 12px; transition: all 0.2s; }
-        .agency-tab.active.sk { background: var(--sk-red); color: white; }
-        .agency-tab.active.kt { background: var(--kt-blue); color: white; }
-        .agency-tab.active.lg { background: var(--lg-purple); color: white; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { 
+        background: #f0f2f5; 
+        margin: 0; 
+        padding: 10px; 
+        display: flex; 
+        flex-direction: column; 
+        gap: 15px; 
+        font-family: 'Pretendard', -apple-system, sans-serif; 
+        line-height: 1.4;
+    }
 
-        .header-section { padding: 10px 24px 25px; text-align: left; }
-        .header-label { font-size: 0.85rem; color: var(--toss-subtext); margin-bottom: 4px; font-weight: 600; }
-        
-        #model-selector { 
-            width: 100%; padding: 0; border: none; font-size: 1.6rem; font-weight: 800; color: var(--toss-text); background: transparent; outline: none; appearance: none; cursor: pointer;
-        }
-        #display-price { font-size: 0.95rem; color: var(--toss-subtext); margin-top: 4px; }
+    .admin-controls {
+        width: 100%; 
+        background: #fff; 
+        padding: 15px; 
+        border-radius: 15px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05); 
+        border: 1px solid #ddd;
+    }
+    .admin-controls h2 { font-size: 15px; margin: 0 0 10px 0; color: #333; border-bottom: 2px solid #333; padding-bottom: 5px; }
+    .admin-controls label { font-size: 11px; font-weight: bold; color: #666; display: block; margin-top: 8px; }
+    .admin-controls select { width: 100%; padding: 12px; margin-top: 5px; border-radius: 8px; border: 1px solid #ddd; font-weight: bold; background-color: #fff; font-size: 14px; }
+    
+    .model-selector { 
+        display: flex; 
+        flex-direction: row; 
+        overflow-x: auto; 
+        gap: 8px; 
+        margin-top: 10px; 
+        padding-bottom: 5px;
+        -webkit-overflow-scrolling: touch;
+    }
+    .model-btn { 
+        flex: 0 0 auto;
+        padding: 8px 15px; 
+        border: 1px solid #eee; 
+        background: #f9f9f9; 
+        border-radius: 20px; 
+        font-size: 12px; 
+        font-weight: 600; 
+    }
+    .model-btn.active { background: #000; color: #fff; border-color: #000; }
 
-        /* 옵션 컨트롤러 */
-        .option-container { padding: 0 24px 24px; display: flex; flex-direction: column; gap: 12px; }
-        .option-row { display: flex; background: var(--toss-grey); padding: 5px; border-radius: 16px; }
-        .opt-btn { flex: 1; padding: 12px; border: none; background: transparent; color: var(--toss-subtext); cursor: pointer; font-weight: 700; font-size: 0.9rem; border-radius: 12px; transition: 0.2s; }
-        .opt-btn.active { background: #fff; color: var(--toss-text); box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
+    .capture-area { 
+        width: 100%; 
+        max-width: 500px; 
+        margin: 0 auto;
+        background: #fff; 
+        border-radius: 20px; 
+        overflow: hidden; 
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
+        border: 1px solid #eee;
+    }
 
-        /* 결과 리스트 */
-        .price-list { padding: 0 24px 20px; }
-        .price-card { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; border-bottom: 1px solid #f2f4f6; }
-        .price-card:last-child { border-bottom: none; }
-        
-        .plan-info { display: flex; flex-direction: column; gap: 2px; }
-        .plan-name { font-weight: 700; font-size: 1.05rem; color: var(--toss-text); }
-        .plan-sub { font-size: 0.85rem; color: var(--toss-subtext); }
-        
-        .result-info { text-align: right; }
-        .monthly-total { color: var(--toss-blue); font-weight: 800; font-size: 1.35rem; display: block; }
-        .detail-row { font-size: 0.8rem; color: var(--toss-subtext); margin-top: 2px; }
-        .sale-text { color: #f04452; font-weight: 600; }
+    .header { background: #111; color: #fff; padding: 20px 15px; text-align: center; }
+    .header .brand { color: var(--main-color); font-size: 12px; font-weight: 900; letter-spacing: 2px; display: block; margin-bottom: 5px; }
+    .header .guide-text { color: #aaa; font-size: 11px; margin-bottom: 8px; }
+    .header .title { font-size: 24px; font-weight: 900; letter-spacing: -0.5px; word-break: keep-all; }
 
-        /* 하단 버튼 */
-        .bottom-btns { padding: 0 24px 30px; display: flex; flex-direction: column; gap: 12px; }
-        .btn { text-decoration: none; height: 64px; display: flex; align-items: center; justify-content: center; border-radius: 18px; font-weight: 700; font-size: 1.1rem; }
-        .btn-main { background: var(--toss-blue); color: white; }
-        .btn-kakao { background: #fee500; color: #1a1f27; }
-        
-        .footer-info { text-align: center; padding: 20px; font-size: 0.8rem; color: var(--toss-subtext); line-height: 1.6; }
-    </style>
+    .condition-bar {
+        display: flex; justify-content: space-around; background: #f8f9fa; padding: 12px 5px;
+        border-bottom: 1px solid #eee; font-size: 12px; font-weight: 800; color: #444;
+    }
+    .condition-bar span { color: var(--main-color); }
+
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th { background: #fdfdfd; padding: 10px 2px; font-size: 11px; border-bottom: 2px solid #333; color: #333; }
+    td { padding: 15px 2px; text-align: center; border-bottom: 1px solid #eee; font-size: 13px; }
+    
+    .plan-name { font-weight: 800; color: #222; font-size: 13px; }
+    .price-sub { font-size: 10px; color: #999; margin-top: 2px; font-weight: normal; }
+    .price-red { color: var(--main-color) !important; font-weight: 900; font-size: 18px !important; letter-spacing: -0.5px; }
+    .won { font-size: 12px; }
+
+    /* 아코디언 슬라이드 스타일 */
+    .info-accordion { border-top: 8px solid var(--t-grey-1); }
+    .accordion-item { border-bottom: 1px solid var(--t-grey-2); }
+    .accordion-header { 
+        width: 100%; padding: 15px 20px; background: #fff; border: none; text-align: left;
+        display: flex; justify-content: space-between; align-items: center; cursor: pointer;
+        font-size: 13px; font-weight: 800; color: #333;
+    }
+    .accordion-header::after { content: '∨'; font-size: 11px; color: #bbb; transition: 0.3s; }
+    .accordion-item.active .accordion-header::after { transform: rotate(180deg); }
+    
+    .accordion-content { 
+        max-height: 0; overflow: hidden; background: #fafafa; transition: max-height 0.3s ease-out;
+    }
+    .accordion-item.active .accordion-content { max-height: 2000px; }
+    .inner-body { padding: 15px; font-size: 12px; color: #555; line-height: 1.6; }
+    .inner-body img { max-width: 100%; height: auto; border-radius: 8px; display: block; margin: 0 auto; }
+
+    .contact-info { background: #f8f9fa; padding: 15px; display: flex; flex-direction: column; gap: 12px; }
+    .contact-row { display: flex; justify-content: space-between; align-items: center; }
+    .contact-text { font-size: 12px; font-weight: 800; color: #333; }
+    .contact-text span { color: var(--main-color); display: block; font-size: 16px; margin-top: 2px; }
+    
+    .apply-btn {
+        background: var(--t-black); color: #fff; text-align: center; padding: 15px;
+        border-radius: 12px; text-decoration: none; font-size: 15px; font-weight: 900;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+
+    .kakao-btn-box {
+        background: #fee500; color: #3c1e1e; padding: 8px 12px; border-radius: 8px;
+        text-decoration: none; font-size: 12px; font-weight: 900; display: flex; align-items: center; gap: 5px;
+    }
+
+    .footer-notice { padding: 15px; background: #fafafa; font-size: 11px; color: #888; line-height: 1.6; border-top: 1px solid #eee; margin-bottom: 60px; }
+
+    @media (min-width: 800px) {
+        body { flex-direction: row; align-items: flex-start; justify-content: center; padding: 40px; }
+        .admin-controls { width: 280px; position: sticky; top: 20px; }
+        .capture-area { width: 500px; margin: 0; }
+        .model-selector { flex-direction: column; overflow-x: visible; max-height: 500px; }
+    }
+</style>
 </head>
 <body>
 
-<div class="calc-wrapper">
-    <div class="agency-nav">
-        <button class="agency-tab active sk" onclick="changeAgency('SK', this)">SKT</button>
-        <button class="agency-tab kt" onclick="changeAgency('KT', this)">KT</button>
-        <button class="agency-tab lg" onclick="changeAgency('LG', this)">LG U+</button>
-    </div>
+<div class="admin-controls">
+    <h2>알고모바일 설정</h2>
+    
+    <label>1. 통신사 선택</label>
+    <select id="telecom-select" onchange="updateBrand(this.value)">
+        <option value="SK">SKT (RED)</option>
+        <option value="KT">KT (BLUE)</option>
+        <option value="LG">LGU+ (PURPLE)</option>
+    </select>
 
-    <div class="header-section">
-        <div class="header-label">기종 선택</div>
-        <select id="model-selector" onchange="render()"></select>
-        <p id="display-price">출고가 확인 중...</p>
-    </div>
-
-    <div class="option-container">
-        <div class="option-row">
-            <button class="opt-btn active" onclick="setOpt('transfer', 'MNP', this)">번호이동</button>
-            <button class="opt-btn" onclick="setOpt('transfer', 'KSP', this)">기기변경</button>
+    <div style="display: flex; gap: 10px;">
+        <div style="flex: 1;">
+            <label>2. 할인 방식</label>
+            <select onchange="updateMode(this.value)">
+                <option value="gongsi">공시지원</option>
+                <option value="sanyak">선택약정</option>
+            </select>
         </div>
-        <div class="option-row">
-            <button class="opt-btn active" onclick="setOpt('discount', '공시', this)">공시지원</button>
-            <button class="opt-btn" onclick="setOpt('discount', '선약', this)">선택약정</button>
-        </div>
-        <div class="option-row">
-            <button class="opt-btn active" onclick="setOpt('payType', '할부', this)">24개월 할부</button>
-            <button class="opt-btn" onclick="setOpt('payType', '완납', this)">현금 일시납</button>
+        <div style="flex: 1;">
+            <label>3. 가입 유형</label>
+            <select onchange="updateType(this.value)">
+                <option value="UP">기기변경</option>
+                <option value="NP">번호이동</option>
+            </select>
         </div>
     </div>
 
-    <div class="price-list" id="price-body"></div>
+    <label>4. 결제 방식</label>
+    <select onchange="updatePay(this.value)">
+        <option value="install">24개월 할부</option>
+        <option value="cash">현금 일시납(완납)</option>
+    </select>
 
-    <div class="bottom-btns">
-        <a id="apply-link" href="#" target="_blank" class="btn btn-main">공식 신청서 접수하기</a>
-        <a href="http://pf.kakao.com/_xmgiwn/chat" target="_blank" class="btn btn-kakao">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/e/e3/KakaoTalk_logo.svg" width="22" style="margin-right: 8px;"> 카톡 상담
-        </a>
-    </div>
+    <label>5. 모델 선택</label>
+    <div class="model-selector" id="model-list"></div>
 </div>
 
-<div class="footer-info">
-    이자(5.9%)가 포함된 예상 월 납부금입니다.<br>
-    최종 개통 조건은 신청서 접수 후 안내드립니다.
+<div class="capture-area" id="capture-target">
+    <div class="header">
+        <span class="brand">ALGO MOBILE</span>
+        <div class="guide-text">모델 선택 시 월 납부액이 자동 계산됩니다.</div>
+        <div class="title" id="display-model-name">연동 중...</div>
+    </div>
+
+    <div class="condition-bar">
+        <div><span id="view-tel">SKT</span></div>
+        <div><span id="view-type">기변</span></div>
+        <div><span id="view-mode">공시</span></div>
+        <div><span id="view-pay">할부</span></div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th width="33%">요금제</th>
+                <th width="20%">지원금</th>
+                <th width="20%">할부원금</th>
+                <th width="27%">월 납부액</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+
+    <div class="info-accordion">
+        <div class="accordion-item" id="acc-spec">
+            <button class="accordion-header" onclick="toggleAcc('acc-spec')">상세 모델 정보</button>
+            <div class="accordion-content"><div class="inner-body" id="content-spec"></div></div>
+        </div>
+        <div class="accordion-item" id="acc-notice">
+            <button class="accordion-header" onclick="toggleAcc('acc-notice')">이용 안내 및 유의사항</button>
+            <div class="accordion-content"><div class="inner-body" id="content-notice"></div></div>
+        </div>
+    </div>
+
+    <div class="contact-info">
+        <a id="main-apply-link" href="#" target="_blank" class="apply-btn">공식 신청서 접수하기</a>
+        <div class="contact-row">
+            <div class="contact-text">문의 <span>📞 010-7577-5800</span></div>
+            <a href="http://pf.kakao.com/_sdYlu/chat" target="_blank" class="kakao-btn-box">카톡 상담</a>
+        </div>
+    </div>
+
+    <div class="footer-notice">
+        • 이자(5.9%)가 포함된 예상 월 납부금입니다.<br>
+        • 지원금은 통신사 사정에 따라 변동될 수 있습니다.
+    </div>
 </div>
 
 <script>
-    const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQkpuK9stqU__s1xNNaLWgQ3VZjjgIziQtmCav6v2bZirYZQrOJn9kZoxuEK34hb7BU5Qj-1igcI2Jc/pub?output=csv";
-    
-    const PLAN_LIST = {
-        SK: [{n:"5GX 프리미엄", f:109000}, {n:"5GX 프라임+", f:99000}, {n:"5GX 프라임", f:89000}, {n:"5G 레귤러+", f:79000}],
-        KT: [{n:"초이스 스페셜", f:110000}, {n:"스페셜", f:100000}, {n:"초이스 베이직", f:90000}, {n:"5G 심플110G", f:69000}],
-        LG: [{n:"5G 시그니처", f:130000}, {n:"5G 프리미어S", f:115000}, {n:"5G 프리미어P", f:105000}, {n:"5G 프리미어R", f:95000}]
-    };
+const FILE_IDS = {
+    SK: "13vra0xzllGhkkuVoNaA_KOHXiHbRfwol8zDiB24S00o", 
+    KT: "1x3tNRBfNPV4E4OdkM4pDYlD4HKJP1dN0Z2QZxdcXE4o", 
+    LG: "1NaQvnsgXLBWKl9n15otRXCMfRElLhyLdk54VmEGLkfU" 
+};
+const TAB_NAMES = { SK: "skprice", KT: "skprice", LG: "skprice" };
+const PLAN_DB = {
+    SK: [{n:"5GX 프리미엄", p:109000}, {n:"5GX 프라임+", p:99000}, {n:"5GX 프라임", p:89000}, {n:"5G 레귤러+", p:79000}],
+    KT: [{n:"초이스 스페셜", p:110000}, {n:"스페셜", p:100000}, {n:"초이스 베이직", p:90000}, {n:"5G 심플110G", p:69000}],
+    LG: [{n:"5G 시그니처", p:130000}, {n:"5G 프리미어S", p:115000}, {n:"5G 프리미어P", p:105000}, {n:"5G 프리미어R", p:95000}]
+};
 
-    let allData = [];
-    let state = { agency: "SK", transfer: "MNP", discount: "공시", payType: "할부" };
+let DEVICES = [], curDev = null;
+let state = { tel: 'SK', pay: 'install', type: 'UP', mode: 'gongsi' };
 
-    async function init() {
-        try {
-            const res = await fetch(`${CSV_URL}&t=${Date.now()}`);
-            const text = await res.text();
-            const rows = text.split('\n').filter(r => r.trim()).map(row => {
-                const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
-                return row.split(regex).map(cell => cell.replace(/"/g, '').trim());
-            });
+async function loadData() {
+    const listArea = document.getElementById('model-list');
+    listArea.innerHTML = `<div style="font-size:12px; color:#999; padding:10px;">로딩 중...</div>`;
+    const url = `https://docs.google.com/spreadsheets/d/${FILE_IDS[state.tel]}/gviz/tq?tqx=out:csv&sheet=${TAB_NAMES[state.tel]}`;
 
-            const headers = rows[0].map(h => h.trim());
-            allData = rows.slice(1).map(row => {
-                let obj = {};
-                headers.forEach((h, i) => obj[h] = row[i]);
-                return obj;
-            });
-
-            const selector = document.getElementById('model-selector');
-            selector.innerHTML = allData.map((d, i) => `<option value="${i}">${d.기종명}</option>`).join('');
-
-            render();
-        } catch (e) { console.error("데이터 로드 실패"); }
-    }
-
-    // 숫자 처리 로직 강화 (만원 단위 보정)
-    function clean(n) {
-        if(!n) return 0;
-        let numStr = String(n).replace(/[^0-9]/g, '');
-        let val = Number(numStr);
-        if (val > 0 && val < 5000) return val * 10000; // '50' 입력 시 50만으로 처리
-        return val;
-    }
-
-    function render() {
-        const idx = document.getElementById('model-selector').value;
-        const item = allData[idx];
-        if(!item) return;
-
-        const colors = { SK: '#f04452', KT: '#3182f6', LG: '#9647ff' };
-        document.documentElement.style.setProperty('--toss-blue', colors[state.agency]);
-
-        const fPrice = clean(item.출고가);
-        document.getElementById('display-price').innerText = `출고가 ${fPrice.toLocaleString()}원`;
-        document.getElementById('apply-link').href = item.신청서URL || "#";
-
-        let html = '';
-        PLAN_LIST[state.agency].forEach((plan, i) => {
-            // 기변/번이 추가지원금 구분
-            const extra = (state.transfer === 'MNP') ? clean(item.번이_추가지원금) : clean(item.기변_추가지원금);
-            
-            // 통신사별 공시지원금 추출 (콤마 구분)
-            const colName = `${state.agency}T${state.transfer === 'MNP' ? '번이' : '기변'}`;
-            const rawSupport = item[colName] || "";
-            const parts = rawSupport.split(',').map(s => s.trim());
-            const gongsi = clean(parts[i] || parts[0]);
-
-            let totalSale, monthlyPlanFee;
-            if (state.discount === '공시') {
-                totalSale = gongsi + extra;
-                monthlyPlanFee = plan.f;
-            } else {
-                totalSale = extra;
-                monthlyPlanFee = plan.f * 0.75;
-            }
-
-            const principal = Math.max(0, fPrice - totalSale);
-            let monthlyDevice = 0;
-            if (state.payType === '할부' && principal > 0) {
-                // 정확한 할부 이자 공식 적용 (5.9%)
-                monthlyDevice = Math.floor((principal * 1.059) / 24 / 10) * 10;
-            }
-
-            const monthlyTotal = monthlyDevice + monthlyPlanFee;
-
-            html += `
-                <div class="price-card">
-                    <div class="plan-info">
-                        <span class="plan-name">${plan.n}</span>
-                        <span class="plan-sub">${(plan.f/10000).toFixed(1)}만 요금제</span>
-                    </div>
-                    <div class="result-info">
-                        <span class="monthly-total">${monthlyTotal.toLocaleString()}원</span>
-                        <div class="detail-row">
-                            단말기(할부원금) ${Math.floor(principal/10000)}만 · 
-                            <span class="sale-text">${state.discount==='공시' ? '지원금 포함' : '25% 할인'}</span>
-                        </div>
-                    </div>
-                </div>`;
+    try {
+        const res = await fetch(url);
+        const text = await res.text();
+        const rows = text.split('\n').filter(r => r.trim() !== "").map(row => {
+            const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
+            return row.split(regex).map(cell => cell.replace(/"/g, '').trim());
         });
-        document.getElementById('price-body').innerHTML = html;
-    }
 
-    function changeAgency(a, btn) {
-        state.agency = a;
-        document.querySelectorAll('.agency-tab').forEach(t => t.classList.remove('active', 'sk', 'kt', 'lg'));
-        btn.classList.add('active', a.toLowerCase());
+        DEVICES = rows.slice(1).map(cols => {
+            const n = (v) => parseInt(String(v || "0").replace(/[^0-9]/g, "")) || 0;
+            const s = (str) => {
+                let arr = (str || "0,0,0,0").split(',').map(v => n(v) * 10000);
+                while(arr.length < 4) arr.push(0);
+                return arr;
+            };
+            return { 
+                name: cols[0],       // A: 기종명
+                price: n(cols[1]),    // B: 출고가
+                extraUP: n(cols[2]),  // C: 기변추가
+                extraNP: n(cols[3]),  // D: 번이추가
+                UP: s(cols[4]),       // E: 기변공시
+                NP: s(cols[5]),       // F: 번이공시
+                formLink: cols[6],    // G: 신청링크
+                spec: cols[7],        // H: 상세내용(이미지주소 or 텍스트)
+                notice: cols[8]       // I: 유의사항(이미지주소 or 텍스트)
+            };
+        }).filter(d => d.name);
+
+        listArea.innerHTML = "";
+        DEVICES.forEach((d, i) => {
+            const btn = document.createElement('div');
+            btn.className = `model-btn ${i===0?'active':''}`;
+            btn.innerText = d.name;
+            btn.onclick = function() {
+                document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                curDev = d;
+                render();
+            };
+            listArea.appendChild(btn);
+        });
+        curDev = DEVICES[0];
         render();
+    } catch (e) {
+        listArea.innerHTML = `<div style="color:red; font-size:11px; padding:10px;">연동 실패!</div>`;
     }
+}
 
-    function setOpt(key, val, btn) {
-        state[key] = val;
-        btn.parentElement.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        render();
-    }
+function render() {
+    if(!curDev) return;
+    const body = document.getElementById('tableBody');
+    const plans = PLAN_DB[state.tel];
+    
+    document.getElementById('display-model-name').innerText = curDev.name;
+    document.getElementById('view-tel').innerText = state.tel + (state.tel === 'LG' ? 'U+' : 'T');
+    document.getElementById('view-type').innerText = state.type === 'UP' ? '기변' : '번이';
+    document.getElementById('view-mode').innerText = state.mode === 'gongsi' ? '공시' : '선약';
+    document.getElementById('view-pay').innerText = state.pay === 'install' ? '할부' : '완납';
 
-    init();
+    // 슬라이드 내용 처리
+    const processContent = (val) => {
+        if(!val) return "정보가 없습니다.";
+        if(val.startsWith('http')) return `<img src="${val}" alt="이미지">`;
+        return `<div style="white-space:pre-wrap;">${val}</div>`;
+    };
+    document.getElementById('content-spec').innerHTML = processContent(curDev.spec);
+    document.getElementById('content-notice').innerHTML = processContent(curDev.notice);
+
+    const applyBtn = document.getElementById('main-apply-link');
+    applyBtn.href = (curDev.formLink && curDev.formLink.startsWith('http')) ? curDev.formLink : "http://pf.kakao.com/_sdYlu/chat";
+
+    body.innerHTML = "";
+    plans.forEach((p, i) => {
+        let saleText = "", princ = 0, monthlyPlan = 0;
+        let currentExtra = (state.type === 'UP') ? curDev.extraUP : curDev.extraNP;
+
+        if (state.mode === 'gongsi') {
+            let gongsi = (curDev[state.type][i] || 0) + currentExtra;
+            saleText = (gongsi/10000).toFixed(0) + "만";
+            princ = Math.max(0, curDev.price - gongsi);
+            monthlyPlan = p.p;
+        } else {
+            saleText = "25%";
+            princ = Math.max(0, curDev.price - currentExtra);
+            monthlyPlan = p.p * 0.75;
+        }
+
+        let monthlyDevice = state.pay === 'install' ? Math.floor((princ * 1.059) / 24 / 10) * 10 : 0;
+        let total = monthlyDevice + monthlyPlan;
+
+        body.innerHTML += `
+            <tr>
+                <td class="plan-name">${p.n}<div class="price-sub">${(p.p/10000).toFixed(1)}만 요금제</div></td>
+                <td style="color:${state.mode==='gongsi'?'#444':'#27ae60'}; font-weight:700;">${saleText}</td>
+                <td style="color:#666;">${Math.floor(princ/10000)}만</td>
+                <td class="price-red">${total.toLocaleString()}<span class="won">원</span></td>
+            </tr>
+        `;
+    });
+}
+
+function toggleAcc(id) {
+    const item = document.getElementById(id);
+    const isActive = item.classList.contains('active');
+    document.querySelectorAll('.accordion-item').forEach(i => i.classList.remove('active'));
+    if(!isActive) item.classList.add('active');
+}
+
+function updateBrand(val) {
+    state.tel = val;
+    const root = document.querySelector(':root');
+    const colors = { SK: '#e60023', KT: '#007aff', LG: '#8e44ad' };
+    root.style.setProperty('--main-color', colors[val]);
+    loadData(); 
+}
+
+function updateMode(val) { state.mode = val; render(); }
+function updatePay(val) { state.pay = val; render(); }
+function updateType(val) { state.type = val; render(); }
+
+loadData(); 
 </script>
 </body>
 </html>
